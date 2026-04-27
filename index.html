@@ -22,7 +22,6 @@
 
     canvas { display: block; }
 
-    /* ── Top toolbar ── */
     #toolbar {
       position: absolute;
       top: 0; left: 0; right: 0;
@@ -37,7 +36,6 @@
       z-index: 10;
     }
 
-    /* ── Bottom toolbar ── */
     #bottombar {
       position: absolute;
       bottom: 0; left: 0; right: 0;
@@ -105,7 +103,6 @@
       margin-left: auto;
     }
 
-    /* ── Drop overlay ── */
     #drop-overlay {
       position: absolute;
       inset: 0;
@@ -145,7 +142,6 @@
 
 <div id="canvas-wrap"></div>
 
-<!-- Drop overlay (shown when no model loaded) -->
 <div id="drop-overlay" class="active">
   <div class="drop-box" id="drop-box">
     <div class="drop-icon">⬡</div>
@@ -155,7 +151,6 @@
   </div>
 </div>
 
-<!-- Top toolbar -->
 <div id="toolbar">
   <button class="primary" onclick="document.getElementById('file-input').click()">Load GLB</button>
   <input type="file" id="file-input" accept=".glb,.gltf">
@@ -195,7 +190,6 @@
   <span id="status">No model loaded</span>
 </div>
 
-<!-- Bottom toolbar -->
 <div id="bottombar">
   <label class="lbl">Background</label>
   <input type="color" id="bg-color" value="#111111" title="Background colour">
@@ -231,17 +225,13 @@
 
 <script type="module">
 import * as THREE from 'three';
-import { OrbitControls }  from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader }     from 'three/addons/loaders/GLTFLoader.js';
-import { DRACOLoader }    from 'three/addons/loaders/DRACOLoader.js';
+import { OrbitControls }   from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader }      from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader }     from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-// ── Renderer ─────────────────────────────────────────────────────────────────
-const renderer = new THREE.WebGLRenderer({
-  antialias: true,
-  alpha: true,
-  preserveDrawingBuffer: true,
-});
+// ── Renderer ──────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -249,7 +239,7 @@ renderer.toneMappingExposure = 1.0;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.getElementById('canvas-wrap').appendChild(renderer.domElement);
 
-// ── Scene / Camera ────────────────────────────────────────────────────────────
+// ── Scene / Camera ─────────────────────────────────────────────────────────────
 const scene  = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.001, 1000);
 camera.position.set(0, 0, 3.5);
@@ -258,7 +248,7 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
 
-// ── Environment (studio room) ─────────────────────────────────────────────────
+// ── Environment ────────────────────────────────────────────────────────────────
 const pmrem   = new THREE.PMREMGenerator(renderer);
 const roomEnv = new RoomEnvironment(renderer);
 const envTex  = pmrem.fromScene(roomEnv).texture;
@@ -266,7 +256,7 @@ scene.environment = envTex;
 pmrem.dispose();
 roomEnv.dispose();
 
-// ── Studio lights ─────────────────────────────────────────────────────────────
+// ── Studio lights ──────────────────────────────────────────────────────────────
 const keyLight = new THREE.DirectionalLight(0xffffff, 3.5);
 keyLight.position.set(4, 6, 5);
 scene.add(keyLight);
@@ -282,19 +272,18 @@ scene.add(rimLight);
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.15);
 scene.add(ambientLight);
 
-// ── Material presets ──────────────────────────────────────────────────────────
+// ── Material presets ───────────────────────────────────────────────────────────
 const PRESETS = {
   chrome:     { color: 0xffffff, metalness: 1.0, roughness: 0.05 },
   gold:       { color: 0xffd060, metalness: 1.0, roughness: 0.10 },
   copper:     { color: 0xb87040, metalness: 1.0, roughness: 0.15 },
-  // MeshPhysicalMaterial with transmission — dichroic glass, not opaque metal
-  iridescent: { color: 0x000000, metalness: 0, roughness: 0.05, isIridescent: true },
+  iridescent: { color: 0x000000, metalness: 0,   roughness: 0.05, isIridescent: true },
 };
 
-let currentModel    = null;
-let originalMats    = new Map();   // uuid → original material
-let currentPreset   = 'chrome';
-let overrideRough   = null;
+let currentModel  = null;
+let originalMats  = new Map();
+let currentPreset = 'chrome';
+let overrideRough = null;
 
 function buildMat(presetName) {
   const p    = PRESETS[presetName];
@@ -331,41 +320,31 @@ function buildMat(presetName) {
   });
 }
 
-// ── Lighting modes ────────────────────────────────────────────────────────────
+// ── Lighting modes ─────────────────────────────────────────────────────────────
 function applyLightingMode(presetName) {
   if (presetName === 'iridescent') {
-    keyLight.color.setHex(0x4422cc);
-    keyLight.intensity  = 0.6;
-    fillLight.color.setHex(0x221133);
-    fillLight.intensity = 0.15;
-    rimLight.color.setHex(0x110022);
-    rimLight.intensity  = 0.1;
-    ambientLight.color.setHex(0x0a0014);
-    ambientLight.intensity = 0.08;
+    keyLight.color.setHex(0x4422cc);  keyLight.intensity  = 0.6;
+    fillLight.color.setHex(0x221133); fillLight.intensity = 0.15;
+    rimLight.color.setHex(0x110022);  rimLight.intensity  = 0.1;
+    ambientLight.color.setHex(0x0a0014); ambientLight.intensity = 0.08;
   } else {
-    keyLight.color.setHex(0xffffff);
-    keyLight.intensity  = 3.5;
-    fillLight.color.setHex(0x9999ff);
-    fillLight.intensity = 1.5;
-    rimLight.color.setHex(0xffffff);
-    rimLight.intensity  = 2.5;
-    ambientLight.color.setHex(0xffffff);
-    ambientLight.intensity = 0.15;
+    keyLight.color.setHex(0xffffff);  keyLight.intensity  = 3.5;
+    fillLight.color.setHex(0x9999ff); fillLight.intensity = 1.5;
+    rimLight.color.setHex(0xffffff);  rimLight.intensity  = 2.5;
+    ambientLight.color.setHex(0xffffff); ambientLight.intensity = 0.15;
   }
 }
 
 function applyPreset(model, name) {
   if (name === 'original') {
-    model.traverse(c => {
-      if (c.isMesh && originalMats.has(c.uuid)) c.material = originalMats.get(c.uuid);
-    });
+    model.traverse(c => { if (c.isMesh && originalMats.has(c.uuid)) c.material = originalMats.get(c.uuid); });
   } else {
     const mat = buildMat(name);
     model.traverse(c => { if (c.isMesh) c.material = mat; });
   }
 }
 
-// ── GLTF loading ──────────────────────────────────────────────────────────────
+// ── GLTF loading ───────────────────────────────────────────────────────────────
 const draco = new DRACOLoader();
 draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/libs/draco/');
 const loader = new GLTFLoader();
@@ -376,29 +355,21 @@ const status = document.getElementById('status');
 function loadFile(file) {
   const url = URL.createObjectURL(file);
   status.textContent = 'Loading…';
-
   loader.load(url, gltf => {
     if (currentModel) scene.remove(currentModel);
     originalMats.clear();
-
     currentModel = gltf.scene;
-    currentModel.traverse(c => {
-      if (c.isMesh) originalMats.set(c.uuid, c.material);
-    });
+    currentModel.traverse(c => { if (c.isMesh) originalMats.set(c.uuid, c.material); });
 
-    // Centre & normalise scale to fill ~2 units
     const box    = new THREE.Box3().setFromObject(currentModel);
     const centre = box.getCenter(new THREE.Vector3());
     const size   = box.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z);
     currentModel.position.sub(centre);
-    currentModel.scale.setScalar(2 / maxDim);
+    currentModel.scale.setScalar(2 / Math.max(size.x, size.y, size.z));
 
     scene.add(currentModel);
     applyPreset(currentModel, currentPreset);
-
     resetCamera();
-
     document.getElementById('drop-overlay').classList.remove('active');
     status.textContent = file.name;
     URL.revokeObjectURL(url);
@@ -410,11 +381,10 @@ function loadFile(file) {
   });
 }
 
-// ── File input / drag-drop ────────────────────────────────────────────────────
+// ── File input / drag-drop ─────────────────────────────────────────────────────
 document.getElementById('file-input').addEventListener('change', e => {
   if (e.target.files[0]) loadFile(e.target.files[0]);
 });
-
 document.body.addEventListener('dragover', e => {
   e.preventDefault();
   document.getElementById('drop-box').classList.add('drag-over');
@@ -429,7 +399,14 @@ document.body.addEventListener('drop', e => {
   if (file) loadFile(file);
 });
 
-// ── Toolbar controls ──────────────────────────────────────────────────────────
+// ── Toolbar controls ───────────────────────────────────────────────────────────
+const bgColorInput = document.getElementById('bg-color');
+const transpCb     = document.getElementById('transparent-cb');
+
+function syncBackground() {
+  scene.background = transpCb.checked ? null : new THREE.Color(bgColorInput.value);
+}
+
 document.getElementById('preset-select').addEventListener('change', e => {
   currentPreset = e.target.value;
   overrideRough = null;
@@ -439,7 +416,6 @@ document.getElementById('preset-select').addEventListener('change', e => {
     document.getElementById('roughness-val').textContent = r.toFixed(2);
   }
   applyLightingMode(currentPreset);
-  // Snap transmission/opacity sliders to sensible defaults per preset
   if (currentPreset === 'iridescent') {
     document.getElementById('transmission-range').value = 0.9;
     document.getElementById('transmission-val').textContent = '0.90';
@@ -462,40 +438,28 @@ document.getElementById('roughness-range').addEventListener('input', e => {
   document.getElementById('roughness-val').textContent = overrideRough.toFixed(2);
   if (currentModel && currentPreset !== 'original') applyPreset(currentModel, currentPreset);
 });
-
 document.getElementById('env-range').addEventListener('input', e => {
   document.getElementById('env-val').textContent = parseFloat(e.target.value).toFixed(2);
   if (currentModel && currentPreset !== 'original') applyPreset(currentModel, currentPreset);
 });
-
 document.getElementById('exp-range').addEventListener('input', e => {
   const v = parseFloat(e.target.value);
   document.getElementById('exp-val').textContent = v.toFixed(2);
   renderer.toneMappingExposure = v;
 });
-
 document.getElementById('transmission-range').addEventListener('input', e => {
   document.getElementById('transmission-val').textContent = parseFloat(e.target.value).toFixed(2);
   if (currentModel && currentPreset !== 'original') applyPreset(currentModel, currentPreset);
 });
-
 document.getElementById('opacity-range').addEventListener('input', e => {
   document.getElementById('opacity-val').textContent = parseFloat(e.target.value).toFixed(2);
   if (currentModel && currentPreset !== 'original') applyPreset(currentModel, currentPreset);
 });
 
-// Background colour
-const bgColorInput = document.getElementById('bg-color');
-const transpCb     = document.getElementById('transparent-cb');
-
-function syncBackground() {
-  scene.background = transpCb.checked ? null : new THREE.Color(bgColorInput.value);
-}
 bgColorInput.addEventListener('input', syncBackground);
 transpCb.addEventListener('change', syncBackground);
 syncBackground();
 
-// Auto-rotate
 let autoRotate = false;
 document.getElementById('auto-rotate-btn').addEventListener('click', e => {
   autoRotate = !autoRotate;
@@ -504,28 +468,24 @@ document.getElementById('auto-rotate-btn').addEventListener('click', e => {
   controls.autoRotateSpeed = 2.0;
 });
 
-// ── Export PNG ────────────────────────────────────────────────────────────────
+// ── Export PNG ─────────────────────────────────────────────────────────────────
 document.getElementById('export-btn').addEventListener('click', () => {
   const scale = parseInt(document.getElementById('export-size').value);
-  const w = window.innerWidth  * scale;
-  const h = window.innerHeight * scale;
-
+  const w = window.innerWidth * scale, h = window.innerHeight * scale;
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.render(scene, camera);
-
   const link = document.createElement('a');
-  link.download = 'chrome-icon.png';
+  link.download = 'icon.png';
   link.href = renderer.domElement.toDataURL('image/png');
   link.click();
-
   renderer.setSize(window.innerWidth, window.innerHeight);
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 });
 
-// ── Reset camera ──────────────────────────────────────────────────────────────
+// ── Reset camera ───────────────────────────────────────────────────────────────
 function resetCamera() {
   camera.position.set(0, 0, 3.5);
   controls.target.set(0, 0, 0);
@@ -533,14 +493,14 @@ function resetCamera() {
 }
 document.getElementById('reset-cam-btn').addEventListener('click', resetCamera);
 
-// ── Resize ────────────────────────────────────────────────────────────────────
+// ── Resize ─────────────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ── Render loop ───────────────────────────────────────────────────────────────
+// ── Render loop ────────────────────────────────────────────────────────────────
 (function animate() {
   requestAnimationFrame(animate);
   controls.update();

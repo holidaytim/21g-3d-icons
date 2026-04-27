@@ -277,7 +277,7 @@ const PRESETS = {
   chrome:     { color: 0xffffff, metalness: 1.0, roughness: 0.05 },
   gold:       { color: 0xffd060, metalness: 1.0, roughness: 0.10 },
   copper:     { color: 0xb87040, metalness: 1.0, roughness: 0.15 },
-  iridescent: { color: 0x050505, metalness: 0,   roughness: 0.0,  isIridescent: true },
+  iridescent: { color: 0x000000, metalness: 0,   roughness: 0.0,  isIridescent: true },
 };
 
 let currentModel  = null;
@@ -298,15 +298,15 @@ function buildMat(presetName) {
       metalness: 0,
       roughness: r,
       transmission: tx,
-      thickness: 3.0,
+      thickness: 2.5,
       ior: 1.5,
       iridescence: 1.0,
-      iridescenceIOR: 2.2,
-      iridescenceThicknessRange: [0, 800],
+      iridescenceIOR: 2.5,
+      iridescenceThicknessRange: [0, 1000],
       opacity: op,
       transparent: tx > 0 || op < 1,
       side: THREE.DoubleSide,
-      envMapIntensity: envI,
+      envMapIntensity: 0,   // env map is nulled for iridescent — no green bleed
     });
   }
 
@@ -323,18 +323,24 @@ function buildMat(presetName) {
 // ── Lighting modes ─────────────────────────────────────────────────────────────
 function applyLightingMode(presetName) {
   if (presetName === 'iridescent') {
-    // Two opposing coloured lights — different angles hit different parts of the
-    // iridescence spectrum simultaneously, forcing the full rainbow to show at once
-    keyLight.color.setHex(0xaaccff);  keyLight.intensity  = 1.2;  // cool blue-white, front-right
-    keyLight.position.set(4, 6, 5);
-    rimLight.color.setHex(0xffaacc);  rimLight.intensity  = 1.2;  // warm pink, back-left opposite
-    rimLight.position.set(-4, -2, -5);
-    fillLight.color.setHex(0xffffff); fillLight.intensity = 0.0;  // off
-    ambientLight.color.setHex(0x050505); ambientLight.intensity = 0.05;
+    // Kill env map — RoomEnvironment has green tones that override iridescence
+    scene.environment = null;
+    // Three saturated coloured lights from different angles force the surface
+    // into different parts of the iridescence spectrum simultaneously
+    keyLight.color.setHex(0xff00aa);  keyLight.intensity = 3;    // hot pink, top-right
+    keyLight.position.set(3, 4, 2);
+    fillLight.color.setHex(0x0044ff); fillLight.intensity = 3;   // electric blue, left
+    fillLight.position.set(-4, 1, 2);
+    rimLight.color.setHex(0xaa00ff);  rimLight.intensity = 2;    // purple, rim behind
+    rimLight.position.set(0, 2, -4);
+    ambientLight.intensity = 0;
   } else {
+    // Restore env map for metallic presets
+    scene.environment = envTex;
     keyLight.color.setHex(0xffffff);  keyLight.intensity  = 3.5;
     keyLight.position.set(4, 6, 5);
     fillLight.color.setHex(0x9999ff); fillLight.intensity = 1.5;
+    fillLight.position.set(-5, 1, 3);
     rimLight.color.setHex(0xffffff);  rimLight.intensity  = 2.5;
     rimLight.position.set(0, 4, -5);
     ambientLight.color.setHex(0xffffff); ambientLight.intensity = 0.15;
@@ -423,8 +429,8 @@ document.getElementById('preset-select').addEventListener('change', e => {
   }
   applyLightingMode(currentPreset);
   if (currentPreset === 'iridescent') {
-    document.getElementById('transmission-range').value = 0.95;
-    document.getElementById('transmission-val').textContent = '0.95';
+    document.getElementById('transmission-range').value = 0.92;
+    document.getElementById('transmission-val').textContent = '0.92';
     document.getElementById('opacity-range').value = 1;
     document.getElementById('opacity-val').textContent = '1.00';
     bgColorInput.value = '#000000';

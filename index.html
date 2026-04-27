@@ -277,7 +277,7 @@ const PRESETS = {
   chrome:     { color: 0xffffff, metalness: 1.0, roughness: 0.05 },
   gold:       { color: 0xffd060, metalness: 1.0, roughness: 0.10 },
   copper:     { color: 0xb87040, metalness: 1.0, roughness: 0.15 },
-  iridescent: { color: 0x000000, metalness: 0,   roughness: 0.05, isIridescent: true },
+  iridescent: { color: 0x050505, metalness: 0,   roughness: 0.0,  isIridescent: true },
 };
 
 let currentModel  = null;
@@ -298,11 +298,11 @@ function buildMat(presetName) {
       metalness: 0,
       roughness: r,
       transmission: tx,
-      thickness: 2.0,
+      thickness: 3.0,
       ior: 1.5,
       iridescence: 1.0,
-      iridescenceIOR: 1.8,
-      iridescenceThicknessRange: [100, 400],
+      iridescenceIOR: 2.2,
+      iridescenceThicknessRange: [0, 800],
       opacity: op,
       transparent: tx > 0 || op < 1,
       side: THREE.DoubleSide,
@@ -323,14 +323,20 @@ function buildMat(presetName) {
 // ── Lighting modes ─────────────────────────────────────────────────────────────
 function applyLightingMode(presetName) {
   if (presetName === 'iridescent') {
-    keyLight.color.setHex(0x4422cc);  keyLight.intensity  = 0.6;
-    fillLight.color.setHex(0x221133); fillLight.intensity = 0.15;
-    rimLight.color.setHex(0x110022);  rimLight.intensity  = 0.1;
-    ambientLight.color.setHex(0x0a0014); ambientLight.intensity = 0.08;
+    // Two opposing coloured lights — different angles hit different parts of the
+    // iridescence spectrum simultaneously, forcing the full rainbow to show at once
+    keyLight.color.setHex(0xaaccff);  keyLight.intensity  = 1.2;  // cool blue-white, front-right
+    keyLight.position.set(4, 6, 5);
+    rimLight.color.setHex(0xffaacc);  rimLight.intensity  = 1.2;  // warm pink, back-left opposite
+    rimLight.position.set(-4, -2, -5);
+    fillLight.color.setHex(0xffffff); fillLight.intensity = 0.0;  // off
+    ambientLight.color.setHex(0x050505); ambientLight.intensity = 0.05;
   } else {
     keyLight.color.setHex(0xffffff);  keyLight.intensity  = 3.5;
+    keyLight.position.set(4, 6, 5);
     fillLight.color.setHex(0x9999ff); fillLight.intensity = 1.5;
     rimLight.color.setHex(0xffffff);  rimLight.intensity  = 2.5;
+    rimLight.position.set(0, 4, -5);
     ambientLight.color.setHex(0xffffff); ambientLight.intensity = 0.15;
   }
 }
@@ -417,8 +423,8 @@ document.getElementById('preset-select').addEventListener('change', e => {
   }
   applyLightingMode(currentPreset);
   if (currentPreset === 'iridescent') {
-    document.getElementById('transmission-range').value = 0.9;
-    document.getElementById('transmission-val').textContent = '0.90';
+    document.getElementById('transmission-range').value = 0.95;
+    document.getElementById('transmission-val').textContent = '0.95';
     document.getElementById('opacity-range').value = 1;
     document.getElementById('opacity-val').textContent = '1.00';
     bgColorInput.value = '#000000';

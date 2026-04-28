@@ -135,7 +135,7 @@
     .drop-title { font-size: 20px; color: #aaa; }
     .drop-sub { font-size: 13px; color: #555; }
 
-    #auto-rotate-btn.on { background: #0066cc; border-color: #0066cc; color: #fff; }
+    .anim-btn.on { background: #0066cc; border-color: #0066cc; color: #fff; }
   </style>
 </head>
 <body>
@@ -185,7 +185,10 @@
 
   <div class="sep"></div>
 
-  <button id="auto-rotate-btn">Auto-rotate</button>
+  <button id="rotate-btn" class="anim-btn">Rotate</button>
+  <button id="float-btn"  class="anim-btn">Float</button>
+  <label class="lbl">Speed <span id="speed-val">1.0</span></label>
+  <input type="range" id="speed-range" min="0.1" max="4" step="0.1" value="1">
 
   <span id="status">No model loaded</span>
 </div>
@@ -208,12 +211,15 @@
   </select>
 
   <button class="primary" id="export-btn">Export PNG</button>
+  <button class="primary" id="export-gif-btn">Export GIF</button>
+  <span id="gif-status" style="font-size:12px;color:#888;"></span>
 
   <div class="sep"></div>
 
   <button id="reset-cam-btn">Reset camera</button>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
 <script type="importmap">
 {
   "imports": {
@@ -284,6 +290,9 @@ let currentModel  = null;
 let originalMats  = new Map();
 let currentPreset = 'chrome';
 let overrideRough = null;
+let animMode      = 'none';  // 'none' | 'rotate' | 'float'
+let animTime      = 0;
+const clock       = new THREE.Clock();
 
 function buildMat(presetName) {
   const p    = PRESETS[presetName];
@@ -472,12 +481,22 @@ bgColorInput.addEventListener('input', syncBackground);
 transpCb.addEventListener('change', syncBackground);
 syncBackground();
 
-let autoRotate = false;
-document.getElementById('auto-rotate-btn').addEventListener('click', e => {
-  autoRotate = !autoRotate;
-  e.currentTarget.classList.toggle('on', autoRotate);
-  controls.autoRotate = autoRotate;
-  controls.autoRotateSpeed = 2.0;
+// ── Animation mode buttons ─────────────────────────────────────────────────────
+function setAnimMode(mode) {
+  animMode = animMode === mode ? 'none' : mode;  // toggle off if already active
+  document.getElementById('rotate-btn').classList.toggle('on', animMode === 'rotate');
+  document.getElementById('float-btn').classList.toggle('on',  animMode === 'float');
+  // Reset model transform when stopping so it snaps back cleanly
+  if (animMode === 'none' && currentModel) {
+    currentModel.position.y = 0;
+    currentModel.rotation.set(0, 0, 0);
+  }
+  animTime = 0;
+}
+document.getElementById('rotate-btn').addEventListener('click', () => setAnimMode('rotate'));
+document.getElementById('float-btn').addEventListener('click',  () => setAnimMode('float'));
+document.getElementById('speed-range').addEventListener('input', e => {
+  document.getElementById('speed-val').textContent = parseFloat(e.target.value).toFixed(1);
 });
 
 // ── Export PNG ─────────────────────────────────────────────────────────────────
@@ -512,9 +531,90 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// ── Export GIF ─────────────────────────────────────────────────────────────────
+async function exportGIF() {
+  if (!currentModel) { alert('Load a model first.'); return; }
+
+  const gifStatus = document.getElementById('gif-status');
+  gifStatus.textContent = 'Preparing…';
+
+  let workerBlobURL;
+  try {
+    const blob = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js').then(r => r.blob());
+    workerBlobURL = URL.createObjectURL(blob);
+  } catch {
+    gifStatus.textContent = 'Worker fetch failed'; return;
+  }
+
+  const SIZE    = 512;
+  const FPS     = 20;
+  const SECONDS = 3;
+  const FRAMES  = FPS * SECONDS;
+  const DELAY   = Math.round(1000 / FPS);
+  const speed   = parseFloat(document.getElementById('speed-range').value);
+  const mode    = animMode === 'none' ? 'rotate' : animMode;
+
+  const savedRotation = currentModel.rotation.clone();
+  const savedPosition = currentModel.position.clone();
+
+  renderer.setSize(SIZE, SIZE);
+  camera.aspect = 1;
+  camera.updateProjectionMatrix();
+
+  const gif = new GIF({ workers: 2, quality: 10, width: SIZE, height: SIZE, workerScript: workerBlobURL });
+
+  const dt = 1 / FPS;
+  let t = 0;
+  for (let i = 0; i < FRAMES; i++) {
+    t += dt * speed;
+    if (mode === 'rotate') {
+      currentModel.rotation.y = t * Math.PI;
+    } else {
+      currentModel.position.y = Math.sin(t * Math.PI) * 0.12;
+      currentModel.rotation.y = Math.sin(t * Math.PI * 0.5) * 0.3;
+    }
+    controls.update();
+    renderer.render(scene, camera);
+    gif.addFrame(renderer.domElement, { copy: true, delay: DELAY });
+    gifStatus.textContent = `Frame ${i + 1} / ${FRAMES}`;
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  currentModel.rotation.copy(savedRotation);
+  currentModel.position.copy(savedPosition);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+
+  gifStatus.textContent = 'Encoding…';
+  gif.on('progress', p => { gifStatus.textContent = `Encoding ${Math.round(p * 100)}%…`; });
+  gif.on('finished', blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'icon.gif';
+    a.click();
+    URL.revokeObjectURL(workerBlobURL);
+    gifStatus.textContent = 'Done!';
+    setTimeout(() => { gifStatus.textContent = ''; }, 3000);
+  });
+  gif.render();
+}
+document.getElementById('export-gif-btn').addEventListener('click', exportGIF);
+
 // ── Render loop ────────────────────────────────────────────────────────────────
 (function animate() {
   requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  const speed = parseFloat(document.getElementById('speed-range').value);
+  if (currentModel && animMode !== 'none') {
+    animTime += delta * speed;
+    if (animMode === 'rotate') {
+      currentModel.rotation.y = animTime * Math.PI;
+    } else if (animMode === 'float') {
+      currentModel.position.y = Math.sin(animTime * Math.PI) * 0.12;
+      currentModel.rotation.y = Math.sin(animTime * Math.PI * 0.5) * 0.3;
+    }
+  }
   controls.update();
   renderer.render(scene, camera);
 })();

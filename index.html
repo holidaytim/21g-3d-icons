@@ -259,8 +259,23 @@ const pmrem   = new THREE.PMREMGenerator(renderer);
 const roomEnv = new RoomEnvironment(renderer);
 const envTex  = pmrem.fromScene(roomEnv).texture;
 scene.environment = envTex;
-pmrem.dispose();
 roomEnv.dispose();
+
+// Neutral white-to-grey gradient env for iridescent — no green cast from RoomEnvironment
+const iridCanvas = document.createElement('canvas');
+iridCanvas.width = 64; iridCanvas.height = 32;
+const iridCtx = iridCanvas.getContext('2d');
+const iridGrad = iridCtx.createLinearGradient(0, 0, 0, 32);
+iridGrad.addColorStop(0,    '#ffffff');
+iridGrad.addColorStop(0.45, '#aaaaaa');
+iridGrad.addColorStop(1,    '#111111');
+iridCtx.fillStyle = iridGrad;
+iridCtx.fillRect(0, 0, 64, 32);
+const iridCanvasTex = new THREE.CanvasTexture(iridCanvas);
+iridCanvasTex.mapping = THREE.EquirectangularReflectionMapping;
+const iridEnvTex = pmrem.fromEquirectangular(iridCanvasTex).texture;
+iridCanvasTex.dispose();
+pmrem.dispose();
 
 // ── Studio lights ──────────────────────────────────────────────────────────────
 const keyLight = new THREE.DirectionalLight(0xffffff, 3.5);
@@ -303,19 +318,19 @@ function buildMat(presetName) {
 
   if (p.isIridescent) {
     return new THREE.MeshPhysicalMaterial({
-      color: p.color,
+      color: 0x111111,
       metalness: 0,
       roughness: r,
       transmission: tx,
-      thickness: 2.5,
+      thickness: 2.0,
       ior: 1.5,
       iridescence: 1.0,
-      iridescenceIOR: 2.5,
-      iridescenceThicknessRange: [0, 1000],
+      iridescenceIOR: 1.5,
+      iridescenceThicknessRange: [100, 800],
       opacity: op,
       transparent: tx > 0 || op < 1,
       side: THREE.DoubleSide,
-      envMapIntensity: 0,   // env map is nulled for iridescent — no green bleed
+      envMapIntensity: 1.5,
     });
   }
 
@@ -332,17 +347,15 @@ function buildMat(presetName) {
 // ── Lighting modes ─────────────────────────────────────────────────────────────
 function applyLightingMode(presetName) {
   if (presetName === 'iridescent') {
-    // Kill env map — RoomEnvironment has green tones that override iridescence
-    scene.environment = null;
-    // Three saturated coloured lights from different angles force the surface
-    // into different parts of the iridescence spectrum simultaneously
-    keyLight.color.setHex(0xff00aa);  keyLight.intensity = 3;    // hot pink, top-right
+    // Neutral gradient env provides angle-varied reflections without green cast
+    scene.environment = iridEnvTex;
+    keyLight.color.setHex(0xffffff);  keyLight.intensity = 2.0;
     keyLight.position.set(3, 4, 2);
-    fillLight.color.setHex(0x0044ff); fillLight.intensity = 3;   // electric blue, left
+    fillLight.color.setHex(0xeeeeff); fillLight.intensity = 1.0;
     fillLight.position.set(-4, 1, 2);
-    rimLight.color.setHex(0xaa00ff);  rimLight.intensity = 2;    // purple, rim behind
+    rimLight.color.setHex(0xffffff);  rimLight.intensity = 1.5;
     rimLight.position.set(0, 2, -4);
-    ambientLight.intensity = 0;
+    ambientLight.color.setHex(0xffffff); ambientLight.intensity = 0.2;
   } else {
     // Restore env map for metallic presets
     scene.environment = envTex;
@@ -438,11 +451,11 @@ document.getElementById('preset-select').addEventListener('change', e => {
   }
   applyLightingMode(currentPreset);
   if (currentPreset === 'iridescent') {
-    document.getElementById('transmission-range').value = 0.92;
-    document.getElementById('transmission-val').textContent = '0.92';
+    document.getElementById('transmission-range').value = 0;
+    document.getElementById('transmission-val').textContent = '0.00';
     document.getElementById('opacity-range').value = 1;
     document.getElementById('opacity-val').textContent = '1.00';
-    bgColorInput.value = '#000000';
+    bgColorInput.value = '#111111';
     transpCb.checked = false;
     syncBackground();
   } else {
@@ -548,7 +561,7 @@ async function exportGIF() {
 
   const SIZE    = 512;
   const FPS     = 20;
-  const SECONDS = 3;
+  const SECONDS = 6;
   const FRAMES  = FPS * SECONDS;
   const DELAY   = Math.round(1000 / FPS);
   const speed   = parseFloat(document.getElementById('speed-range').value);
@@ -570,8 +583,7 @@ async function exportGIF() {
     if (mode === 'rotate') {
       currentModel.rotation.y = t * Math.PI;
     } else {
-      currentModel.position.y = Math.sin(t * Math.PI) * 0.12;
-      currentModel.rotation.y = Math.sin(t * Math.PI * 0.5) * 0.3;
+      currentModel.rotation.y = Math.sin(t * Math.PI * 0.5) * 0.5;
     }
     controls.update();
     renderer.render(scene, camera);
@@ -611,8 +623,7 @@ document.getElementById('export-gif-btn').addEventListener('click', exportGIF);
     if (animMode === 'rotate') {
       currentModel.rotation.y = animTime * Math.PI;
     } else if (animMode === 'float') {
-      currentModel.position.y = Math.sin(animTime * Math.PI) * 0.12;
-      currentModel.rotation.y = Math.sin(animTime * Math.PI * 0.5) * 0.3;
+      currentModel.rotation.y = Math.sin(animTime * Math.PI * 0.5) * 0.5;
     }
   }
   controls.update();

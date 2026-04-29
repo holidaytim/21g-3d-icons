@@ -103,53 +103,12 @@
       margin-left: auto;
     }
 
-    #drop-overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 14px;
-      z-index: 5;
-      pointer-events: none;
-    }
-    #drop-overlay.active { pointer-events: all; }
-
-    .drop-box {
-      border: 2px dashed #333;
-      border-radius: 18px;
-      padding: 48px 64px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      transition: border-color 0.2s, background 0.2s;
-    }
-    .drop-box.drag-over {
-      border-color: #0066cc;
-      background: rgba(0,102,204,0.08);
-    }
-
-    .drop-icon { font-size: 48px; }
-    .drop-title { font-size: 20px; color: #aaa; }
-    .drop-sub { font-size: 13px; color: #555; }
-
     .anim-btn.on { background: #0066cc; border-color: #0066cc; color: #fff; }
   </style>
 </head>
 <body>
 
 <div id="canvas-wrap"></div>
-
-<div id="drop-overlay" class="active">
-  <div class="drop-box" id="drop-box">
-    <div class="drop-icon">⬡</div>
-    <div class="drop-title">Drop a GLB / GLTF file</div>
-    <div class="drop-sub">or</div>
-    <button class="primary" onclick="document.getElementById('file-input').click()">Browse file…</button>
-  </div>
-</div>
 
 <div id="toolbar">
   <button class="primary" onclick="document.getElementById('file-input').click()">Load GLB</button>
@@ -187,8 +146,8 @@
 
   <button id="rotate-btn" class="anim-btn">Rotate</button>
   <button id="float-btn"  class="anim-btn">Float</button>
-  <label class="lbl">Speed <span id="speed-val">1.0</span></label>
-  <input type="range" id="speed-range" min="0.1" max="4" step="0.1" value="1">
+  <label class="lbl">Speed <span id="speed-val">0.5</span></label>
+  <input type="range" id="speed-range" min="0.1" max="4" step="0.1" value="0.5">
 
   <span id="status">No model loaded</span>
 </div>
@@ -261,16 +220,21 @@ const envTex  = pmrem.fromScene(roomEnv).texture;
 scene.environment = envTex;
 roomEnv.dispose();
 
-// Neutral white-to-grey gradient env for iridescent — no green cast from RoomEnvironment
+// Rainbow env for iridescent — gives pinks, cyans, purples across the surface
 const iridCanvas = document.createElement('canvas');
-iridCanvas.width = 64; iridCanvas.height = 32;
+iridCanvas.width = 64; iridCanvas.height = 64;
 const iridCtx = iridCanvas.getContext('2d');
-const iridGrad = iridCtx.createLinearGradient(0, 0, 0, 32);
+const iridGrad = iridCtx.createLinearGradient(0, 0, 0, 64);
 iridGrad.addColorStop(0,    '#ffffff');
-iridGrad.addColorStop(0.45, '#aaaaaa');
-iridGrad.addColorStop(1,    '#111111');
+iridGrad.addColorStop(0.10, '#ffccee');
+iridGrad.addColorStop(0.25, '#cc44ff');
+iridGrad.addColorStop(0.40, '#0066ff');
+iridGrad.addColorStop(0.55, '#00eeff');
+iridGrad.addColorStop(0.70, '#ff0099');
+iridGrad.addColorStop(0.85, '#440033');
+iridGrad.addColorStop(1,    '#0a0a0a');
 iridCtx.fillStyle = iridGrad;
-iridCtx.fillRect(0, 0, 64, 32);
+iridCtx.fillRect(0, 0, 64, 64);
 const iridCanvasTex = new THREE.CanvasTexture(iridCanvas);
 iridCanvasTex.mapping = THREE.EquirectangularReflectionMapping;
 const iridEnvTex = pmrem.fromEquirectangular(iridCanvasTex).texture;
@@ -318,19 +282,19 @@ function buildMat(presetName) {
 
   if (p.isIridescent) {
     return new THREE.MeshPhysicalMaterial({
-      color: 0x111111,
+      color: 0x000000,
       metalness: 0,
       roughness: r,
       transmission: tx,
-      thickness: 2.0,
+      thickness: 1.5,
       ior: 1.5,
       iridescence: 1.0,
-      iridescenceIOR: 1.5,
-      iridescenceThicknessRange: [100, 800],
+      iridescenceIOR: 2.4,
+      iridescenceThicknessRange: [100, 1400],
       opacity: op,
       transparent: tx > 0 || op < 1,
       side: THREE.DoubleSide,
-      envMapIntensity: 1.5,
+      envMapIntensity: 2.5,
     });
   }
 
@@ -347,15 +311,14 @@ function buildMat(presetName) {
 // ── Lighting modes ─────────────────────────────────────────────────────────────
 function applyLightingMode(presetName) {
   if (presetName === 'iridescent') {
-    // Neutral gradient env provides angle-varied reflections without green cast
     scene.environment = iridEnvTex;
-    keyLight.color.setHex(0xffffff);  keyLight.intensity = 2.0;
+    keyLight.color.setHex(0xff88cc);  keyLight.intensity = 2.5;   // pink
     keyLight.position.set(3, 4, 2);
-    fillLight.color.setHex(0xeeeeff); fillLight.intensity = 1.0;
+    fillLight.color.setHex(0x00eeff); fillLight.intensity = 2.0;  // cyan
     fillLight.position.set(-4, 1, 2);
-    rimLight.color.setHex(0xffffff);  rimLight.intensity = 1.5;
+    rimLight.color.setHex(0xaa44ff);  rimLight.intensity = 2.0;   // violet
     rimLight.position.set(0, 2, -4);
-    ambientLight.color.setHex(0xffffff); ambientLight.intensity = 0.2;
+    ambientLight.color.setHex(0xffffff); ambientLight.intensity = 0.1;
   } else {
     // Restore env map for metallic presets
     scene.environment = envTex;
@@ -404,7 +367,6 @@ function loadFile(file) {
     scene.add(currentModel);
     applyPreset(currentModel, currentPreset);
     resetCamera();
-    document.getElementById('drop-overlay').classList.remove('active');
     status.textContent = file.name;
     URL.revokeObjectURL(url);
   }, xhr => {
@@ -419,16 +381,9 @@ function loadFile(file) {
 document.getElementById('file-input').addEventListener('change', e => {
   if (e.target.files[0]) loadFile(e.target.files[0]);
 });
-document.body.addEventListener('dragover', e => {
-  e.preventDefault();
-  document.getElementById('drop-box').classList.add('drag-over');
-});
-document.body.addEventListener('dragleave', () => {
-  document.getElementById('drop-box').classList.remove('drag-over');
-});
+document.body.addEventListener('dragover', e => { e.preventDefault(); });
 document.body.addEventListener('drop', e => {
   e.preventDefault();
-  document.getElementById('drop-box').classList.remove('drag-over');
   const file = e.dataTransfer.files[0];
   if (file) loadFile(file);
 });

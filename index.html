@@ -558,36 +558,48 @@ async function exportGIF() {
   const SECONDS = 6;
   const FRAMES  = FPS * SECONDS;
   const DELAY   = Math.round(1000 / FPS);
-  const speed   = parseFloat(document.getElementById('speed-range').value);
-  const mode    = animMode === 'none' ? 'rotate' : animMode;
 
-  const savedRotation = currentModel.rotation.clone();
-  const savedPosition = currentModel.position.clone();
+  const savedRotation   = currentModel.rotation.clone();
+  const savedPosition   = currentModel.position.clone();
+  const savedBg         = scene.background;
+  const savedPixelRatio = renderer.getPixelRatio();
 
+  // pixelRatio=1 so the WebGL canvas is exactly SIZE×SIZE — fixes size/position glitch
+  renderer.setPixelRatio(1);
   renderer.setSize(SIZE, SIZE);
   camera.aspect = 1;
   camera.updateProjectionMatrix();
 
-  const gif = new GIF({ workers: 2, quality: 10, width: SIZE, height: SIZE, workerScript: workerBlobURL });
+  // Black bg used as transparency key
+  scene.background = new THREE.Color(0x000000);
 
-  const dt = 1 / FPS;
-  let t = 0;
+  // gif.js can't read a WebGL canvas directly; blit each frame into a 2D aux canvas
+  const auxCanvas = document.createElement('canvas');
+  auxCanvas.width = SIZE; auxCanvas.height = SIZE;
+  const auxCtx = auxCanvas.getContext('2d');
+
+  const gif = new GIF({
+    workers: 2, quality: 6,
+    width: SIZE, height: SIZE,
+    workerScript: workerBlobURL,
+    transparent: 0x000000,   // treat black as transparent
+  });
+
   for (let i = 0; i < FRAMES; i++) {
-    t += dt * speed * 0.5;
-    if (mode === 'rotate') {
-      currentModel.rotation.y = t * Math.PI;
-    } else {
-      currentModel.rotation.y = Math.sin(t * Math.PI * 0.5) * 0.5;
-    }
-    controls.update();
+    // Exactly one full rotation → seamless loop
+    currentModel.rotation.y = (i / FRAMES) * Math.PI * 2;
     renderer.render(scene, camera);
-    gif.addFrame(renderer.domElement, { copy: true, delay: DELAY });
+    auxCtx.clearRect(0, 0, SIZE, SIZE);
+    auxCtx.drawImage(renderer.domElement, 0, 0, SIZE, SIZE);
+    gif.addFrame(auxCanvas, { copy: true, delay: DELAY });
     gifStatus.textContent = `Frame ${i + 1} / ${FRAMES}`;
     await new Promise(r => setTimeout(r, 0));
   }
 
   currentModel.rotation.copy(savedRotation);
   currentModel.position.copy(savedPosition);
+  scene.background = savedBg;
+  renderer.setPixelRatio(savedPixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();

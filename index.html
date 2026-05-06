@@ -553,54 +553,53 @@ async function exportGIF() {
     gifStatus.textContent = 'Worker fetch failed'; return;
   }
 
-  const SIZE    = 512;
-  const FPS     = 20;
-  const SECONDS = 6;
-  const FRAMES  = FPS * SECONDS;
-  const DELAY   = Math.round(1000 / FPS);
+  const SIZE   = 512;
+  const FPS    = 20;
+  const FRAMES = FPS * 6;
+  const DELAY  = Math.round(1000 / FPS);
 
-  const savedRotation   = currentModel.rotation.clone();
-  const savedPosition   = currentModel.position.clone();
-  const savedBg         = scene.background;
-  const savedPixelRatio = renderer.getPixelRatio();
+  const savedRotation = currentModel.rotation.clone();
+  const savedBg       = scene.background;
 
-  // pixelRatio=1 so the WebGL canvas is exactly SIZE×SIZE — fixes size/position glitch
-  renderer.setPixelRatio(1);
-  renderer.setSize(SIZE, SIZE);
+  // Render into an off-screen target — never touches main canvas size or pixelRatio
+  const target = new THREE.WebGLRenderTarget(SIZE, SIZE);
   camera.aspect = 1;
   camera.updateProjectionMatrix();
-
-  // Black bg used as transparency key
   scene.background = new THREE.Color(0x000000);
 
-  // gif.js can't read a WebGL canvas directly; blit each frame into a 2D aux canvas
   const auxCanvas = document.createElement('canvas');
   auxCanvas.width = SIZE; auxCanvas.height = SIZE;
-  const auxCtx = auxCanvas.getContext('2d');
+  const auxCtx  = auxCanvas.getContext('2d');
+  const pixelBuf = new Uint8Array(SIZE * SIZE * 4);
 
   const gif = new GIF({
     workers: 2, quality: 6,
     width: SIZE, height: SIZE,
     workerScript: workerBlobURL,
-    transparent: 0x000000,   // treat black as transparent
+    transparent: 0x000000,
   });
 
   for (let i = 0; i < FRAMES; i++) {
-    // Exactly one full rotation → seamless loop
     currentModel.rotation.y = (i / FRAMES) * Math.PI * 2;
+    renderer.setRenderTarget(target);
     renderer.render(scene, camera);
-    auxCtx.clearRect(0, 0, SIZE, SIZE);
-    auxCtx.drawImage(renderer.domElement, 0, 0, SIZE, SIZE);
+    // Read pixels and flip vertically (WebGL is bottom-up)
+    renderer.readRenderTargetPixels(target, 0, 0, SIZE, SIZE, pixelBuf);
+    renderer.setRenderTarget(null);
+    const imgData = auxCtx.createImageData(SIZE, SIZE);
+    for (let y = 0; y < SIZE; y++) {
+      const src = (SIZE - 1 - y) * SIZE * 4;
+      imgData.data.set(pixelBuf.subarray(src, src + SIZE * 4), y * SIZE * 4);
+    }
+    auxCtx.putImageData(imgData, 0, 0);
     gif.addFrame(auxCanvas, { copy: true, delay: DELAY });
     gifStatus.textContent = `Frame ${i + 1} / ${FRAMES}`;
     await new Promise(r => setTimeout(r, 0));
   }
 
+  target.dispose();
   currentModel.rotation.copy(savedRotation);
-  currentModel.position.copy(savedPosition);
   scene.background = savedBg;
-  renderer.setPixelRatio(savedPixelRatio);
-  renderer.setSize(window.innerWidth, window.innerHeight);
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 
